@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 ## @package img2html
-#  Usage        : img2html.py file1 [file2 ...]
+#  Usage        : img2html.py file1|dir1 [file2|dir2 ...]
 #  Description  : generate html uses box-shadow to show picture
 #                 or a html to show your image sequence in a folder as css animation
-#  Dependencies : Python Image Library, Python 3
+#  Dependencies : Python Image Library or Pillow, Python 3
 #  Note         : Take care of the Super-High-Energy output ( >﹏<。)
 #  Date         : 2014-12-19
 #  Author       : frantic1048
