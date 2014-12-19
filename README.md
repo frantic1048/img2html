@@ -2,7 +2,9 @@
 
 You want to use html to show your image ?
 
-generate a html use box-shadow to show pictures.
+generate html uses box-shadow to show picture.
+
+Or a html shows your image sequence in a folder as **animation** !
 
 Take care of the Super-High-Energy output ( >﹏<。)
 

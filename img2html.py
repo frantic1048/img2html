@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-## @package img2html.py.py
+## @package img2html
 #  Usage        : img2html.py file1 [file2 ...]
-#  Description  : generate a html use box-shadow to show pictures
+#  Description  : generate html uses box-shadow to show picture
+#                 or a html to show your image sequence in a folder as css animation
 #  Dependencies : Python Image Library, Python 3
 #  Note         : Take care of the Super-High-Energy output ( >﹏<。)
-#  Date         : 2014-12-18
+#  Date         : 2014-12-19
 #  Author       : frantic1048
 
 
@@ -15,8 +16,10 @@ import os
 from PIL import Image
 from string import Template
 
-## @var docTmpl template for constructing entire html document
-docTmpl = Template('''
+class UnknownColorMode(Exception): pass
+
+## @var tHTML template for constructing entire html document
+tHTML = Template('''
 <!doctype html>
 <html lang="en">
 <head>
@@ -29,8 +32,8 @@ docTmpl = Template('''
 </body>
 </html>''')
 
-## @var cssTmplStatic template for constructing static image's css code
-cssTmplStatic = Template('''
+## @var tCSSStatic template for constructing static image's css code
+tCSSStatic = Template('''
 @charset "utf-8";
 body{
   display:flex;
@@ -55,8 +58,8 @@ body{
 }
 ''')
 
-## @var cssTmplAnimation template for constructing image sequence's css animation code
-cssTmplAnimation = Template('''
+## @var tCSSAnimation template for constructing image sequence's css animation code
+tCSSAnimation = Template('''
 @charset "utf-8";
 body{
   display:flex;
@@ -76,12 +79,26 @@ body{
   margin:0;
   padding:0;
   content:"\\200B";/*ZWS*/
-  animation:ayaya ${animationLength} step infinite;
+  animation:ayaya ${animationLength} step-end infinite alternate;
 }
-@keyframes ayaya{
 ${animationKeyFrames}
-}
   ''')
+
+## @var tCSSKeyframes template entire CSS keyframes rule
+tCSSKeyframes = Template('@keyframes ayaya {${keyframes}}')
+
+## @var tCSSKeyframe template for a single CSS keyframe
+tCSSKeyframe = Template('${percentage}% {${keyframeRule}}\n')
+
+## @var tCSSKeyframeRule template for a single CSS keyframe inner rule
+tCSSKeyframeRule = Template('background:${firstPixel};box-shadow:${boxshadow};')
+
+## ensure no trailiing slash in directory name
+def toRegularDirName(dirName):
+    if (os.path.split(dirName)[-1] == ''):
+      return os.path.split(dirName)[0]
+    else:
+      return dirName
 
 ## write str to a file,named as <exportFileName>.html
 def toFile (str,exportFileName):
@@ -89,10 +106,24 @@ def toFile (str,exportFileName):
     html.write(str)
 
 ## construct HEX Color value for a pixel
-#  @param pixel a pixel object to be converted
-#  @return hex format color of the pixel
+#  @param pixel a RGB mode pixel object to be converted
+#  @return CSS hex format color value
 def toHexColor (pixel):
   return '#{0:02x}{1:02x}{2:02x}'.format(*pixel[:])
+
+## construct RGBA Color value for a pixel
+#  @param pixel a RGBA mode pixle object to be comverted
+#  @return CSS rgba format color value
+def toRGBAColor (pixel):
+  return 'rgba({0},{1},{2},{3})'.format(*pixel[:])
+
+def toCSSColor (pixel, mode):
+  if (mode == 'RGB'):
+    return toHexColor(pixel)
+  elif (mode == 'RGBA'):
+    return toRGBAColor(pixel)
+  else:
+    raise UnknownColorMode
 
 ## construct single box-shadow param
 #  @param color valid CSS color
@@ -116,14 +147,14 @@ def mipaStatic(fileName,export=''):
     ## image size
     width, height = im.size[0], im.size[1]
 
-    #ensure RGB mode
-    if (im.mode != 'RGB'):
-      im = im.convert(mode = 'RGB')
+    #ensure RGB(A) mode
+    if (im.mode != 'RGBA' or im.mode != 'RGB'):
+      im.convert('RGB')
 
-    firstPixel = toHexColor(im.getpixel((0,0)))
+    firstPixel = toCSSColor(im.getpixel((0,0)), im.mode)
     for y in range(0, height):
       for x in range(0, width):
-        color = toHexColor(im.getpixel((x, y)))
+        color = toCSSColor(im.getpixel((x, y)), im.mode)
         #link magic
         boxshadow += toBoxShadowParam(x, y, color)
 
@@ -132,19 +163,88 @@ def mipaStatic(fileName,export=''):
           #keep a '\n' for text editor ˊ_>ˋ
           boxshadow += ',' + '\n'
 
-    doc = docTmpl.substitute(name = title, css = cssTmplStatic.substitute(width = width, height = height, boxshadow = boxshadow, firstPixel=firstPixel))
+    doc = tHTML.substitute(name = title, css = tCSSStatic.substitute(width = width, height = height, boxshadow = boxshadow, firstPixel=firstPixel))
     if (export==''):
       print(doc)
     else:
       export(doc, exportFileName)
 
+
 ## process a image folder
-#  files in folder will processed to an animation
+#  files in folder will processed to an animated html
 #  process order is filename asend
-#  @param fileName input file's name
+#  @param dirName input file's name
 #  @param export output callback, call with generated html as a string argument
-def mipaAnimation(fileName,export=print):
-  print('constructing...')
+def mipaAnimation(dirName,export=''):
+  dirName = toRegularDirName(dirName)
+  title = os.path.basename(dirName)
+  exportFileName = title + '.html'
+
+  files = os.listdir(dirName)
+  files.sort()
+
+  FPS = 24
+  mode = ''
+  width, height = 0, 0
+  frameCount = 0
+  keyframeRules = []
+  keyframe = ''
+
+  for f in files:
+    try:
+      with Image.open(os.path.join(dirName, f)) as im:
+
+        if (export!=''):print('processing file --> ' + f)
+
+        frameCount+=1
+
+        #ensure RGB(A) mode
+        if (im.mode != 'RGBA' or im.mode != 'RGB'):
+          im.convert('RGB');
+
+        #collect animation info
+        if (width == 0) : width, height = im.size[0], im.size[1]
+        if (mode == '') : mode = im.mode
+
+        firstPixel = toCSSColor(im.getpixel((0,0)), mode)
+        boxshadow = ''
+        for y in range(0, height):
+          for x in range(0, width):
+            color = toCSSColor(im.getpixel((x, y)), mode)
+            #link magic
+            boxshadow += toBoxShadowParam(x, y, color)
+
+            #add a spliter if not the end
+            if (not (y == height-1 and x == width-1)):
+              #keep a '\n' for text editor ˊ_>ˋ
+              boxshadow += ',' + '\n'
+        keyframeRules.append(tCSSKeyframeRule.substitute(firstPixel=firstPixel,boxshadow=boxshadow))
+    except:
+      pass
+
+  percentUnit= 100/frameCount
+  for i in range(0,frameCount):
+    if (i == frameCount - 1):
+      pc = '100'
+    elif (i == 0):
+      pc = '0'
+    else:
+      pc = str(percentUnit * i)
+    keyframe += tCSSKeyframe.substitute(percentage = pc, keyframeRule = keyframeRules[i])
+
+  if (export!=''):print('generating document...')
+  doc = tHTML.substitute(name = title, css = tCSSAnimation.substitute(animationLength = str((1000 / FPS) * frameCount) + 'ms',
+                                                                          animationKeyFrames = tCSSKeyframes.substitute(keyframes = keyframe),
+                                                                          height = height,
+                                                                          width = width))
+  #output
+  if (export==''):
+    print(doc)
+  else:
+    print('Start exporting...')
+    export(doc, exportFileName)
+    print('Finished exporting !\nenjoy with your magical ' + exportFileName + ' _(:з」∠)_')
+
 
 for path in sys.argv[1:]:
   if os.path.isfile(path):
@@ -154,5 +254,5 @@ for path in sys.argv[1:]:
     ##export to autonamed file
     mipaStatic(path,toFile)
   elif os.path.isdir(path):
-    mipaAnimation(path)
-    #mipaAnimation(path,toFile)
+    #mipaAnimation(path)
+    mipaAnimation(path,toFile)
