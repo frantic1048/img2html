@@ -2,7 +2,7 @@
 
 You want to use html to show your image ?
 
-generate html uses box-shadow to show picture.
+generate html uses box-shadow to show image.
 
 Or a html shows your image sequence in a folder as **animation** !
 
@@ -10,7 +10,11 @@ Take care of the Super-High-Energy output ( >﹏<。)
 
 #Usage
 
-`img2html.py file1|dir1 [file2|dir2 ...]`
+    img2html.py file1|dir1 [file2|dir2 ...]
+
+outputs : static html (for single image) or animated html (for image sequence) that shows your image
+
+    file1.html|dir1.html [file2.html|dir2.html ...]
 
 #Note
 
@@ -25,7 +29,7 @@ for example(input a directory shows below):
     ├── 2.jpg
     ├── 3.jpg
     └── z.jpg
-    
+
 the converted frame order is like this (files will be automaticly sorted according to it's name)
 
     1.jpg --> 2.jpg --> 3.jpg --> c.jpg --> o.jpg --> z.jpg
